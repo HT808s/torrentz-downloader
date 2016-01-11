@@ -10,7 +10,10 @@
   "author": "ernewe_j",
   "license": "ISC",
   "dependencies": {
+    "bunyan": "^1.5.1",
+    "commander": "^2.9.0",
     "inotify": "^1.4.0",
+    "rethinkdb": "^2.2.1",
     "webtorrent": "^0.71.3"
   }
 }
