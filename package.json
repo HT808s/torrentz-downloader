@@ -15,5 +15,9 @@
     "inotify": "^1.4.0",
     "rethinkdb": "^2.2.1",
     "webtorrent": "^0.71.3"
+  },
+  "devDependencies": {
+    "rewire": "^2.5.1",
+    "should": "^8.1.1"
   }
 }

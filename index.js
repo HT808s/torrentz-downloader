@@ -5,7 +5,7 @@ var inotify = new Inotify(); //persistent by default, new Inotify(false) //no pe
 var client = new WebTorrent();
 var r = require('rethinkdb');
 var parseTorrent = require('parse-torrent');
-
+var bunyan = require('bunyan');
 
 function extract_links(json) {
     var links = [];
@@ -15,8 +15,24 @@ function extract_links(json) {
     return links;
 }
 
+function download_done() {
+    module.log.info('torrent finished downloading', {
+        infoHash: torrent.infoHash
+    });
+}
+
 module.exports = function(log) {
-    this.log = log;
+    if (log)
+        this.log = log;
+    else
+        this.log = bunyan.createLogger({
+            name: 'torrent-downloader',
+            src: true,
+            streams: [{
+                level: 'error',
+                stream: process.stdout
+            }]
+        });
     var module = this;
 
     this.download_torrents = function(torrents_links, opts) {
@@ -25,20 +41,36 @@ module.exports = function(log) {
         }
     };
 
-    this.download_torrent = function(link, opts) {
+    this.download_magnet = function(magnet, opts, done) {
+        var parsed = null;
+        try {
+            parsed = parseTorrent(magnet);
+        } catch (err) {
+            module.log.error(err.message);
+            done(err);
+        }
+        client.add(parsed, opts, function(torrent) {
+            module.log.info('Downloading: ', {
+                infoHash: torrent.infoHash
+            });
+            torrent.on('done', function() {
+                done(null, torrent);
+            });
+        });
+    };
+
+    this.download_torrent = function(link, opts, done) {
         parseTorrent.remote(link, function(err, parsedTorrent) {
             if (err) {
                 module.log.error(err.message);
-                return;
+                done(err);
             } else {
-                client.add(link, opts, function(torrent) {
+                client.add(parsedTorrent, opts, function(torrent) {
                     module.log.info('Downloading: ', {
                         infoHash: torrent.infoHash
                     });
                     torrent.on('done', function() {
-                        module.log.info('torrent finished downloading', {
-                            infoHash: torrent.infoHash
-                        });
+                        done(null, torrent);
                     });
                 });
             }
@@ -80,22 +112,36 @@ module.exports = function(log) {
     this.watch_rethinkDB = function(host, port, database, table, outputdir) {
 
         this.log.info('Watching rethinkDB ' + host + ':' + port + ':' + database + ':' + table);
-        r.connect({
-            host: host,
-            port: port
-        }, function(err, conn) {
-            if (err) throw err;
+        r.connect(host, port).then(function(conn) {
             r.db(database).table(table).changes().run(conn, function(err, cursor) {
                 if (err) throw err;
                 cursor.eachAsync(function(row) {
-                    module.download_torrent(row.new_val.download_link, {
-                        path: outputdir
-                    });
+                    if (row.new_val.magnet_link) {
+                        module.download_magnet(row.new_val.magnet_link, {
+                            path: outputdir
+                        }, function(err, torrent) {
+                            if (err) module.log.error(err.message);
+                            module.log.info('download complete', {
+                                infoHash: torrent.infoHash
+                            });
+                        });
+                    } else if (row.new_val.torrent_link) {
+                        module.download_torrent(row.new_val.torrent_link, {
+                            path: outputdir
+                        }, function(err, torrent) {
+                            if (err) module.log.error(err.message);
+			    module.log.info('download complete', {
+                                infoHash: torrent.infoHash
+                            });
+                        });
+                    }
                     return row;
                 }).then(function() {
                     module.log.info('done processing');
                 });
             });
+        }).error(function(err) {
+            if (err) throw err;
         });
     };
 };
