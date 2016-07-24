@@ -12,11 +12,10 @@
   "dependencies": {
     "bluebird": "^3.4.1",
     "bunyan": "^1.5.1",
-    "commander": "^2.9.0",
     "dotenv": "^2.0.0",
     "inotify": "^1.4.0",
     "mkdirp": "^0.5.1",
-    "rethinkdb": "^2.2.1",
+    "parse-torrent": "^5.8.0",
     "rethinkdbdash": "^2.3.17",
     "webtorrent": "^0.71.3"
   },
