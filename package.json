@@ -2,22 +2,32 @@
   "name": "torrent-downloader",
   "version": "0.1.0",
   "description": "Download torrents",
-  "main": "index.js",
-  "start": "index.js",
+  "main": "server.js",
+  "start": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "./node_modules/.bin/istanbul cover ./node_modules/.bin/_mocha"
   },
   "author": "ernewe_j",
   "license": "ISC",
   "dependencies": {
+    "bluebird": "^3.4.1",
     "bunyan": "^1.5.1",
     "commander": "^2.9.0",
+    "dotenv": "^2.0.0",
     "inotify": "^1.4.0",
+    "mkdirp": "^0.5.1",
     "rethinkdb": "^2.2.1",
+    "rethinkdbdash": "^2.3.17",
     "webtorrent": "^0.71.3"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/HT808s/torrentz-downloader.git"
+  },
   "devDependencies": {
-    "rewire": "^2.5.1",
-    "should": "^8.1.1"
+    "babel-core": "^6.11.4",
+    "chai": "^3.5.0",
+    "istanbul": "^0.4.4",
+    "mocha": "^2.5.3"
   }
 }

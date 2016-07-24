@@ -1,93 +1,62 @@
-var program = require('commander');
-var TorrentDownloader = require('./index.js');
-var bunyan = require('bunyan');
-var fs = require('fs');
+"use strict";
 
-var log_levels = ['info', 'warn', 'error', 'fatal'];
+const conf = require('dotenv').config();
+const TorrentDownloader = require('./downloader.js');
+const bunyan = require('bunyan');
+const Promise = require('bluebird');
 
-function isDirectory(val) {
-    var outputdir = "";
+const mkdirp = Promise.promisify(require('mkdirp'));
+const log_levels = ['info', 'warn', 'error', 'fatal'];
 
-    try {
-        if (val) {
-            var stats = fs.statSync(val);
-            if (!stats.isDirectory()) {
-                log.info(val + " is not a directory, downloads will go to " + outputdir);
-            } else
-                outputdir = program.outputdir;
-        }
-    } catch (err) {
-        log.error(err.message);
-        outputdir = "/tmp/webtorrent";
-        log.info(val + " is not a directory, downloads will go to " + outputdir);
-    }
-    return outputdir;
-}
-
-function collect(val, memo) {
-    memo.push(val);
-    return memo;
-}
-
-function increaseVerbosity(v, total) {
-    if (v > 4) v = 4;
-    return total + v;
-}
-
-function rethinkDB(val) {
-    return val.split(':');
-}
-
-program
-    .version('0.0.1')
-    .usage('[options] <file ...>')
-    .option('-s, --seeders <n>', 'An integer argument', parseInt)
-    .option('-l, --leechers <n>', 'An integer argument', parseInt)
-    .option('-o, --outputdir [value]', 'Specify destination for downloaded files')
-    .option('-d, --directory [value]', 'add a directory to watch', collect, [])
-    .option('-r, --rethinkdb [value]', 'Set rethinkDB host [HOST:PORT:DATABASE]', rethinkDB)
-    .option('-t, --rethinkTable [value]', 'add a rethinkDB table to watch', collect, [])
-    .option('-v, --verbose', 'A value that can be increased', increaseVerbosity, -1)
-    .option('--debug', 'trigger debug functionality')
-    .parse(process.argv);
-
-
-var log = bunyan.createLogger({
+const log = bunyan.createLogger({
     name: 'torrent-downloader',
-    src: program.debug,
+    src: 'debug',
     streams: [{
-        level: log_levels[program.verbose],
+        level: 'info',
         stream: process.stdout
     }]
 });
 
-log.debug(' seeders: %j', program.seeders);
-log.debug(' leechers: %j', program.leechers);
-log.debug(' directory: %j', program.directory);
-log.debug(' rethinkDB: %j', program.rethinkdb);
-log.debug(' rethinkTable: %j', program.rethinkTable);
-log.debug(' outputdir: %j', program.outputdir);
-log.debug(' args: %j', program.args);
+const downloader = TorrentDownloader(process.env.DOWNLOAD_DIRECTORY || '/tmp');
 
-var downloader = new TorrentDownloader(log);
+const servers = process.env.RETHINK_SERVERS.split(',').reduce((arr, elm, index, array) => {
+    if (index%2) return arr;
+    arr.push({host:elm, port:array[index+1]});
+    return arr;
+}, []);
 
-if (program.rethinkdb && program.rethinkdb.length == 3) {
+const rethink = downloader.rethink(servers);
 
-    for (var i = 0; i < program.rethinkTable.length; i++) {
-        downloader.watch_rethinkDB(program.rethinkdb[0],
-            program.rethinkdb[1],
-            program.rethinkdb[2],
-            program.rethinkTable[i],
-            isDirectory(program.outputdir));
-    }
-    if (program.rethinkTable.length == 0) {
-        downloader.watch_rethinkDB(program.rethinkdb[0],
-            program.rethinkdb[1],
-            program.rethinkdb[2],
-            "torrents", isDirectory(program.outputdir));
-    }
-}
+process.on('SIGINT', () => {
+    rethink.drain().then(() => {process.exit();});
+});
 
-for (var i = 0; i < program.directory.length; i++) {
-    downloader.watch_directory(program.directory[i], isDirectory(program.outputdir));
-}
+log.info.bind(log, 'Watching the following tables: ')(process.env.RETHINK_TABLES.split(','));
+rethink.watch_table.apply(null, process.env.RETHINK_TABLES.split(',')).then((result) => {
+    const callback = (torrent) => {	
+	log.info('download complete', {infoHash: torrent.infoHash});
+    };
+
+    result.each((err, row) => {
+	row.new_val.magnet_link &&
+	    downloader.download_magnet(row.new_val.magnet_link)
+	    .then(callback)
+	    .catch((e) => {throw e;});
+	row.new_val.torrent_link &&
+	    downloader.download_torrent(row.new_val.torrent_link)
+	    .then(callback)
+	    .catch((e) => {throw e;});
+    });
+});
+
+
+// const directories = process.env.DIRECTORIES.split(',');
+
+// directories.length ? directories.map((directory) => {
+//     mkdirp(directory).then(() => {
+// 	downloader.watch_directory(directory);
+//     }).catch((err) => {
+// 	log.error(err);
+// 	throw err;
+//     });
+// }) : downloader.watch_directory('/tmp/webtorrent');
