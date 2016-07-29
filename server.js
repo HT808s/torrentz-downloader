@@ -4,6 +4,7 @@ const conf = require('dotenv').config();
 const TorrentDownloader = require('./downloader.js');
 const bunyan = require('bunyan');
 const Promise = require('bluebird');
+const path = require('path');
 
 const mkdirp = Promise.promisify(require('mkdirp'));
 const log_levels = ['info', 'warn', 'error', 'fatal'];
@@ -25,7 +26,8 @@ const servers = process.env.RETHINK_SERVERS.split(',').reduce((arr, elm, index, 
     return arr;
 }, []);
 
-const rethink = downloader.rethink(servers);
+
+const rethink = require(path.join(__dirname, '.', 'rethink.js'))(servers);
 
 process.on('SIGINT', () => {
     rethink.drain().then(() => {process.exit();});
@@ -38,25 +40,8 @@ rethink.watch_table.apply(null, process.env.RETHINK_TABLES.split(',')).then((res
     };
 
     result.each((err, row) => {
-	row.new_val.magnet_link &&
-	    downloader.download_magnet(row.new_val.magnet_link)
-	    .then(callback)
-	    .catch((e) => {throw e;});
-	row.new_val.torrent_link &&
-	    downloader.download_torrent(row.new_val.torrent_link)
+	downloader.download_torrent(row.new_val.torrent_link)
 	    .then(callback)
 	    .catch((e) => {throw e;});
     });
 });
-
-
-// const directories = process.env.DIRECTORIES.split(',');
-
-// directories.length ? directories.map((directory) => {
-//     mkdirp(directory).then(() => {
-// 	downloader.watch_directory(directory);
-//     }).catch((err) => {
-// 	log.error(err);
-// 	throw err;
-//     });
-// }) : downloader.watch_directory('/tmp/webtorrent');
