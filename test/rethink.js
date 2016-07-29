@@ -6,8 +6,9 @@ chai.should();
 /* *** RethinkDB *** */
 
 function rethinkConf() {
-    const torrentDownloader = require(path.join(__dirname, '..', 'downloader.js'))();
-    const rethink = torrentDownloader.rethink([{host:'localhost', port:28015}]);
+    const temp = require(path.join(__dirname, '..', 'rethink.js'));
+    const rethink = require(path.join(__dirname, '..', 'rethink.js'))([{host:'localhost', port:28015}]);
+
     const databaseTimetout = 2600;
     const testTable = 'tests';
     const r = require('rethinkdbdash')();
@@ -50,8 +51,8 @@ function createTable(r, testTable, exec) {
 
 describe('rethink', () => {
     describe('#watch_table', () => {
-	const conf = rethinkConf();
 	it('should return the changes in the database table', function(done) {
+	    const conf = rethinkConf();
 	    this.timeout(conf.databaseTimetout);
 	    createTable(conf.r, conf.testTable, () => {
 		conf.rethink.watch_table(conf.testTable).then((result) => {
@@ -77,7 +78,6 @@ describe('rethink', () => {
 	    conf.rethink.drain().then(() => {
 		done();
 	    });	    
-	});
-	
+	});	
     });
 });

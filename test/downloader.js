@@ -20,36 +20,29 @@ function downloaderConf() {
     };
 }
 
-describe('torrentDownloader', () => {
-    const conf = downloaderConf();
-    
+describe('torrentDownloader', () => {    
     describe('#download_torrent', () => {
-        it('should download without error', function(done) {
+        it('should download the torrent without error', function(done) {
+	    const conf = downloaderConf();
             this.timeout(conf.downloadTimeout);
             conf.torrentDownloader.download_torrent(conf.test_torrent).then((result) => {
 		done();
             }).catch((e) => done(e));
         });
 
-        it('should catch Invalid torrent identifier', (done) => {
-            conf.torrentDownloader.download_torrent('foo').catch((e) => {
-		done();
-	    });
-        });
-    });
-    
-    describe('#download_magnet', () => {
-        it('should download without error', function(done) {
+	it('should download the magnet without error', function(done) {
+	    const conf = downloaderConf();
             this.timeout(conf.downloadTimeout);
-            conf.torrentDownloader.download_magnet(conf.test_magnet).then((result) => {
+            conf.torrentDownloader.download_torrent(conf.test_magnet).then((result) => {
 		done();
             }).catch((e) => done(e));
         });
 
         it('should catch Invalid torrent identifier', (done) => {
-	    conf.torrentDownloader.download_magnet('bar').catch((err) => {
+	    const conf = downloaderConf();
+            conf.torrentDownloader.download_torrent('foo').catch((e) => {
 		done();
 	    });
-	});
+        });
     });
 });
